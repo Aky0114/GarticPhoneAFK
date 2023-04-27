@@ -19,3 +19,6 @@ Botがルームに参加するとき、`names.txt`の中からランダムに名
 
 # Enviroment
 - python 3.10.11
+
+# Credit
+- [GarticPhonk](https://github.com/Eimaen/GarticPhonk)
