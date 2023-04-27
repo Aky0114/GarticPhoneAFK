@@ -1,0 +1,4 @@
+uuid
+colorama
+tls_client
+websocket-client
