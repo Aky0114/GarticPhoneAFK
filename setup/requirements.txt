@@ -1,4 +1,4 @@
 uuid
+httpx
 colorama
-tls_client
 websocket-client

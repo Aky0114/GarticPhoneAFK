@@ -3,102 +3,60 @@ import os
 import json
 import time
 import uuid
+import httpx
 import random
 import string
 import secrets
 import colorama
 import websocket
 import threading
-import tls_client
 
 class GarticPhoneClient:
     def __init__(self):
         self.ws = ""
-        self.session = tls_client.Session(
-            client_identifier = "chrome_104",
-            pseudo_header_order = [":authority", ":method", ":path", ":scheme"],
-            header_order = ["accept", "accept-encoding", "accept-language", "user-agent"],
-            random_tls_extension_order = True
-        )
+        self.client = httpx.Client()
+
+        self.headers = {
+            "Origin": "https://garticphone.com",
+            "Referer": "https://garticphone.com/",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36"
+        }
         
         self.endpoint = ""
         self.sid = ""
         self.id = ""
 
     def send_requests(self, room_id):
-        randomize_key = self.generate_random_key()
-        randomize_icon = self.generate_random_num()
+        randomize_icon = str(random.randint(1, 37))
 
-        self.endpoint = self.session.get(
+        self.endpoint = self.client.get(
             f"https://garticphone.com/api/server?code={room_id}",
-            headers = {
-                "origin": "https://garticphone.com",
-                "referer": "https://garticphone.com/",
-                "sec-ch-ua": "\"Chromium\";v=\"104\", \"Google Chrome\";v=\"104\", \"Not:A-Brand\";v=\"99\"",
-                "sec-ch-ua-mobile": "?0",
-                "sec-ch-ha-platform": "\"Windows\"",
-                "sec-fetch-dest": "empty",
-                "sec-fetch-mode": "cors",
-                "sec-fetch-site": "same-site",
-            }
+            headers = self.headers
         ).text
 
-        response = self.session.get(
-            self.endpoint + f"/socket.io/?EIO=3&transport=polling&t={randomize_key}",
-            headers = {
-                "origin": "https://garticphone.com",
-                "referer": "https://garticphone.com/",
-                "sec-ch-ua": "\"Chromium\";v=\"104\", \"Google Chrome\";v=\"104\", \"Not:A-Brand\";v=\"99\"",
-                "sec-ch-ua-mobile": "?0",
-                "sec-ch-ha-platform": "\"Windows\"",
-                "sec-fetch-dest": "empty",
-                "sec-fetch-mode": "cors",
-                "sec-fetch-site": "same-site",
-            }
+        response = self.client.get(
+            self.endpoint + f"/socket.io/?EIO=3&transport=polling&t={self.generate_random_key()}",
+            headers = self.headers
         )
         self.sid = re.findall(r"sid\":\"(.*?)\"", response.text)[0]
 
         user_data = f"42[1,\"{str(uuid.uuid4())}\",\"{random.choice(names)}\",{randomize_icon},\"en\",false,\"{room_id}\",null,null]"
         user_data = f"{str(len(user_data))}:{user_data}"
-        self.session.post(
-            self.endpoint + f"/socket.io/?EIO=3&transport=polling&sid={self.sid}&t={randomize_key}",
-            headers = {
-                "content-type": "text/plain;charset=UTF-8",
-                "origin": "https://garticphone.com",
-                "referer": "https://garticphone.com/",
-                "sec-ch-ua": "\"Chromium\";v=\"104\", \"Google Chrome\";v=\"104\", \"Not:A-Brand\";v=\"99\"",
-                "sec-ch-ua-mobile": "?0",
-                "sec-ch-ha-platform": "\"Windows\"",
-                "sec-fetch-dest": "empty",
-                "sec-fetch-mode": "cors",
-                "sec-fetch-site": "same-site",
-            },
+        self.client.post(
+            self.endpoint + f"/socket.io/?EIO=3&transport=polling&sid={self.sid}&t={self.generate_random_key()}",
+            headers = self.headers,
             data = user_data
         )
 
-        response = self.session.get(
-            self.endpoint + f"/socket.io/?EIO=3&transport=polling&sid={self.sid}&t={randomize_key}",
-            headers = {
-                "origin": "https://garticphone.com",
-                "referer": "https://garticphone.com/",
-                "sec-ch-ua": "\"Chromium\";v=\"104\", \"Google Chrome\";v=\"104\", \"Not:A-Brand\";v=\"99\"",
-                "sec-ch-ua-mobile": "?0",
-                "sec-ch-ha-platform": "\"Windows\"",
-                "sec-fetch-dest": "empty",
-                "sec-fetch-mode": "cors",
-                "sec-fetch-site": "same-site",
-            }
+        response = self.client.get(
+            self.endpoint + f"/socket.io/?EIO=3&transport=polling&sid={self.sid}&t={self.generate_random_key()}",
+            headers = self.headers
         )
         self.id = str(json.loads(response.text[6:])[1]["user"]["id"])
-        print(self.id)
 
     def generate_random_key(self):
         chars = string.ascii_uppercase + string.ascii_lowercase
         return "".join(secrets.choice(chars) for x in range(7))
-    
-    def generate_random_num(self):
-        nums = list(range(1, 35))
-        return str(random.choice(nums))
 
     def ping_loop(self):
         while True:
@@ -160,6 +118,11 @@ welcome_ascii = """
 words = []
 names = []
 
+def title_loop():
+    while True:
+        thread_count = str(len(threading.enumerate()))
+        os.system(f"title GarticPhoneAFK / Threads: {thread_count}")
+
 def run(room_id):
     client = GarticPhoneClient()
     client.main(room_id)
@@ -168,7 +131,7 @@ def main():
     global words
     global names
     colorama.init(convert=True)
-    os.system("title GARTIC PHONE ARASHI BOT v1.0.0")
+    threading.Thread(target=title_loop).start()
     print(colorama.Fore.BLUE + welcome_ascii + colorama.Fore.RESET)
     print(colorama.Fore.BLUE + "GARTIC PHONE ARASHI BOT v1.0.0" + colorama.Fore.RESET)
     print("\n")
@@ -190,7 +153,7 @@ def main():
         print(colorama.Fore.RED + "最低1つ名前を設定する必要があります" + colorama.Fore.RESET)
         return
     gartic_phone_code = input(colorama.Fore.LIGHTMAGENTA_EX + "Gartic Phone Code > " + colorama.Fore.RESET).replace("https://garticphone.com/ja/?c=", "")
-    threads = input(colorama.Fore.LIGHTYELLOW_EX + "スレッド数(Default: 5) > " + colorama.Fore.RESET)
+    threads = input(colorama.Fore.LIGHTYELLOW_EX + "参加数(Default: 5) > " + colorama.Fore.RESET)
     interval = input(colorama.Fore.LIGHTRED_EX + "インターバル(Default: 0) > ")
     if gartic_phone_code == None:
         print(colorama.Fore.RED + "無効なコードです" + colorama.Fore.RESET)
@@ -200,7 +163,7 @@ def main():
     elif interval == "":
         interval = "0"
     if not threads.isnumeric():
-        print(colorama.Fore.RED + "無効なスレッド数です" + colorama.Fore.RESET)
+        print(colorama.Fore.RED + "無効な参加数です" + colorama.Fore.RESET)
         return
     elif not interval.isnumeric():
         print(colorama.Fore.RED + "無効なインターバルです" + colorama.Fore.RESET)
