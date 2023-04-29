@@ -6,10 +6,14 @@ import uuid
 import httpx
 import random
 import string
+import pathlib
+import tkinter
 import secrets
 import colorama
 import websocket
 import threading
+
+from tkinter import messagebox
 
 class GarticPhoneClient:
     def __init__(self):
@@ -21,7 +25,6 @@ class GarticPhoneClient:
             "Referer": "https://garticphone.com/",
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36"
         }
-        
         self.endpoint = ""
         self.sid = ""
         self.id = ""
@@ -77,7 +80,6 @@ class GarticPhoneClient:
     def main(self, room_id):
         result = self.send_requests(room_id)
         if not result:
-            print(colorama.Fore.RED + f"[{threading.current_thread().name}] 満員のため参加出来ませんでした" + colorama.Fore.RESET)
             return "Max"
         self.ws = websocket.WebSocket()
         self.ws.connect(self.endpoint.replace("https", "wss") + f"/socket.io/?EIO=3&transport=websocket&sid={self.sid}")
@@ -107,27 +109,11 @@ class GarticPhoneClient:
                         self.send_string("42[2,15,true]")
                 elif packet_id == "14":
                     if str(data) == self.id:
-                        print(colorama.Fore.RED + f"[{threading.current_thread().name}] Kickされました" + colorama.Fore.RESET)
                         return "Kick"
-
-welcome_ascii = """
-
-░██████╗░░█████╗░██████╗░████████╗██╗░█████╗░  ██████╗░██╗░░██╗░█████╗░███╗░░██╗███████╗
-██╔════╝░██╔══██╗██╔══██╗╚══██╔══╝██║██╔══██╗  ██╔══██╗██║░░██║██╔══██╗████╗░██║██╔════╝
-██║░░██╗░███████║██████╔╝░░░██║░░░██║██║░░╚═╝  ██████╔╝███████║██║░░██║██╔██╗██║█████╗░░
-██║░░╚██╗██╔══██║██╔══██╗░░░██║░░░██║██║░░██╗  ██╔═══╝░██╔══██║██║░░██║██║╚████║██╔══╝░░
-╚██████╔╝██║░░██║██║░░██║░░░██║░░░██║╚█████╔╝  ██║░░░░░██║░░██║╚█████╔╝██║░╚███║███████╗
-░╚═════╝░╚═╝░░╚═╝╚═╝░░╚═╝░░░╚═╝░░░╚═╝░╚════╝░  ╚═╝░░░░░╚═╝░░╚═╝░╚════╝░╚═╝░░╚══╝╚══════╝
-
-"""
 
 words = []
 names = []
-
-def title_loop():
-    while True:
-        thread_count = str(len(threading.enumerate()))
-        os.system(f"title GarticPhoneAFK / Threads: {thread_count}")
+process = False
 
 def run(room_id):
     while True:
@@ -135,53 +121,198 @@ def run(room_id):
         reason = client.main(room_id)
         if reason == "Max":
             return
-        print(colorama.Fore.YELLOW + f"[{threading.current_thread().name}] 再接続中..." + colorama.Fore.RESET)
+
+def start(invite_code, join_count, interval):
+    global process
+    if process:
+        messagebox.showerror("実行エラー", "すでに実行中です")
+        return
+    elif invite_code == "":
+        messagebox.showerror("招待コードエラー", "GarticPhoneの招待コードは必ず必要です")
+        return
+    elif not join_count.isnumeric():
+        messagebox.showerror("参加数エラー", "参加数の値が無効です")
+        return
+    elif not interval.isnumeric():
+        messagebox.showerror("インターバルエラー", "インターバルの値が無効です")
+        return
+    process = True
+    thread_list = []
+    for i in range(int(join_count)):
+        thread = threading.Thread(target=run, args=(invite_code,))
+        thread_list.append(thread)
+        thread.start()
+        time.sleep(int(interval))
+    messagebox.showinfo("開始", "処理を開始しました")
+    for thread in thread_list:
+        thread.join()
+    process = False
+    messagebox.showinfo("完了", "すべての処理が完了しました")
 
 def main():
+    # Global
     global words
     global names
+
+    # Init
     colorama.init(convert=True)
-    threading.Thread(target=title_loop).start()
-    print(colorama.Fore.BLUE + welcome_ascii + colorama.Fore.RESET)
-    print(colorama.Fore.BLUE + "GARTIC PHONE ARASHI BOT v1.0.0" + colorama.Fore.RESET)
-    print("\n")
-    time.sleep(1)
+
+    # Load
     if not os.path.exists("words.txt"):
-        print(colorama.Fore.RED + "words.txtが見つかりませんでした" + colorama.Fore.RESET)
+        messagebox.showerror("ロードエラー", "words.txtが見つかりませんでした")
         return
     elif not os.path.exists("names.txt"):
-        print(colorama.Fore.RED + "names.txtが見つかりませんでした" + colorama.Fore.RESET)
+        messagebox.showerror("ロードエラー", "names.txtが見つかりませんでした")
         return
     with open("words.txt", "r", encoding="utf-8", errors="ignore") as words_file:
         words = words_file.read().split("\n")
     if len(words) < 1:
-        print(colorama.Fore.RED + "最低1つワードを設定する必要があります" + colorama.Fore.RESET)
+        messagebox.showerror("ロードエラー", "words.txtに最低1つワードを設定する必要があります")
         return
     with open("names.txt", "r", encoding="utf-8", errors="ignore") as names_file:
         names = names_file.read().split("\n")
     if len(names) < 1:
-        print(colorama.Fore.RED + "最低1つ名前を設定する必要があります" + colorama.Fore.RESET)
+        messagebox.showerror("ロードエラー", "names.txtに最低1つ名前を設定する必要があります")
         return
-    gartic_phone_code = input(colorama.Fore.LIGHTMAGENTA_EX + "Gartic Phone Code > " + colorama.Fore.RESET).replace("https://garticphone.com/ja/?c=", "")
-    threads = input(colorama.Fore.LIGHTYELLOW_EX + "参加数(Default: 5) > " + colorama.Fore.RESET)
-    interval = input(colorama.Fore.LIGHTRED_EX + "インターバル(Default: 0) > " + colorama.Fore.RESET)
-    if gartic_phone_code == None:
-        print(colorama.Fore.RED + "無効なコードです" + colorama.Fore.RESET)
-        return
-    if threads == "" or not threads.isnumeric():
-        threads = "5"
-    if interval == "" or not interval.isnumeric():
-        interval = "0"
-    print(interval)
-    thread_list = []
-    for i in range(int(threads)):
-        thread = threading.Thread(target=run, args=(gartic_phone_code,))
-        thread_list.append(thread)
-        thread.start()
-        time.sleep(int(interval))
-    for thread in thread_list:
-        thread.join()
-    print(colorama.Fore.GREEN + "すべての処理が完了しました" + colorama.Fore.RESET)
+    
+    # Gui
+    window = tkinter.Tk()
+
+    window.geometry("500x484")
+    window.configure(bg = "#505050")
+    window.title("GarticPhone AFK")
+
+    # Canvas
+    canvas = tkinter.Canvas(
+        window,
+        bg = "#505050",
+        height = 484,
+        width = 500,
+        bd = 0,
+        highlightthickness = 0,
+        relief = "ridge"
+    )
+    canvas.place(x = 0, y = 0)
+    canvas.create_text(
+        144.0,
+        29.0,
+        anchor="nw",
+        text="GarticPhone AFK",
+        fill="#FFFFFF",
+        font=("Inter", 25 * -1)
+    )
+
+    # Invite Code
+    invite_code_input_image = tkinter.PhotoImage(
+        file=pathlib.Path(__file__).parent / pathlib.Path("assets\\input.png")
+    )
+    canvas.create_image(
+        305.5,
+        130.0,
+        image=invite_code_input_image
+    )
+    invite_code_input = tkinter.Entry(
+        bd=0,
+        bg="#303030",
+        fg="#000716",
+        highlightthickness=0
+    )
+    invite_code_input.place(
+        x=156.0,
+        y=108.0,
+        width=299.0,
+        height=42.0
+    )
+    canvas.create_text(
+        18.0,
+        119.0,
+        anchor="nw",
+        text="Invite Code",
+        fill="#FFFFFF",
+        font=("Inter", 17 * -1)
+    )
+
+    # Start Button
+    start_button_image = tkinter.PhotoImage(
+        file=pathlib.Path(__file__).parent / pathlib.Path("assets\\button.png")
+    )
+    start_button = tkinter.Button(
+        image=start_button_image,
+        borderwidth=0,
+        highlightthickness=0,
+        command=lambda: threading.Thread(target=start, args=(invite_code_input.get(), join_count_input.get(), interval_input.get(),)).start(),
+        relief="flat"
+    )
+    start_button.place(
+        x=78.0,
+        y=390.0,
+        width=343.0,
+        height=44.0
+    )
+
+    # Join Count
+    join_count_input_image = tkinter.PhotoImage(
+        file=pathlib.Path(__file__).parent / pathlib.Path("assets\\input.png")
+    )
+    canvas.create_image(
+        305.5,
+        224.0,
+        image=join_count_input_image
+    )
+    join_count_input = tkinter.Entry(
+        bd=0,
+        bg="#303030",
+        fg="#000716",
+        highlightthickness=0
+    )
+    join_count_input.place(
+        x=156.0,
+        y=202.0,
+        width=299.0,
+        height=42.0
+    )
+    canvas.create_text(
+        18.0,
+        213.0,
+        anchor="nw",
+        text="Join Count",
+        fill="#FFFFFF",
+        font=("Inter", 17 * -1)
+    )
+
+    # Interval
+    interval_input_image = tkinter.PhotoImage(
+        file=pathlib.Path(__file__).parent / pathlib.Path("assets\\input.png")
+    )
+    canvas.create_image(
+        305.5,
+        318.0,
+        image=interval_input_image
+    )
+    interval_input = tkinter.Entry(
+        bd=0,
+        bg="#303030",
+        fg="#000716",
+        highlightthickness=0
+    )
+    interval_input.place(
+        x=156.0,
+        y=296.0,
+        width=299.0,
+        height=42.0
+    )
+    canvas.create_text(
+        18.0,
+        306.0,
+        anchor="nw",
+        text="Interval",
+        fill="#FFFFFF",
+        font=("Inter", 17 * -1)
+    )
+
+    # Open Window
+    window.resizable(False, False)
+    window.mainloop()
 
 if __name__ == "__main__":
     main()
