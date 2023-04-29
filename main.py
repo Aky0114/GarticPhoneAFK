@@ -52,7 +52,10 @@ class GarticPhoneClient:
             self.endpoint + f"/socket.io/?EIO=3&transport=polling&sid={self.sid}&t={self.generate_random_key()}",
             headers = self.headers
         )
-        self.id = str(json.loads(response.text[6:])[1]["user"]["id"])
+        if response.text[5:] == "[1,{\"error\":4}]":
+            return False
+        self.id = re.findall(r"\"id\":(.*?),", response.text)[0]
+        return True
 
     def generate_random_key(self):
         chars = string.ascii_uppercase + string.ascii_lowercase
@@ -72,7 +75,10 @@ class GarticPhoneClient:
             return response
         
     def main(self, room_id):
-        self.send_requests(room_id)
+        result = self.send_requests(room_id)
+        if not result:
+            print(colorama.Fore.RED + f"[{threading.current_thread().name}] 満員のため参加出来ませんでした" + colorama.Fore.RESET)
+            return "Max"
         self.ws = websocket.WebSocket()
         self.ws.connect(self.endpoint.replace("https", "wss") + f"/socket.io/?EIO=3&transport=websocket&sid={self.sid}")
 
@@ -102,7 +108,7 @@ class GarticPhoneClient:
                 elif packet_id == "14":
                     if str(data) == self.id:
                         print(colorama.Fore.RED + f"[{threading.current_thread().name}] Kickされました" + colorama.Fore.RESET)
-                        return
+                        return "Kick"
 
 welcome_ascii = """
 
@@ -124,8 +130,12 @@ def title_loop():
         os.system(f"title GarticPhoneAFK / Threads: {thread_count}")
 
 def run(room_id):
-    client = GarticPhoneClient()
-    client.main(room_id)
+    while True:
+        client = GarticPhoneClient()
+        reason = client.main(room_id)
+        if reason == "Max":
+            return
+        print(colorama.Fore.YELLOW + f"[{threading.current_thread().name}] 再接続中..." + colorama.Fore.RESET)
 
 def main():
     global words
@@ -154,20 +164,15 @@ def main():
         return
     gartic_phone_code = input(colorama.Fore.LIGHTMAGENTA_EX + "Gartic Phone Code > " + colorama.Fore.RESET).replace("https://garticphone.com/ja/?c=", "")
     threads = input(colorama.Fore.LIGHTYELLOW_EX + "参加数(Default: 5) > " + colorama.Fore.RESET)
-    interval = input(colorama.Fore.LIGHTRED_EX + "インターバル(Default: 0) > ")
+    interval = input(colorama.Fore.LIGHTRED_EX + "インターバル(Default: 0) > " + colorama.Fore.RESET)
     if gartic_phone_code == None:
         print(colorama.Fore.RED + "無効なコードです" + colorama.Fore.RESET)
         return
-    elif threads == "":
+    if threads == "" or not threads.isnumeric():
         threads = "5"
-    elif interval == "":
+    if interval == "" or not interval.isnumeric():
         interval = "0"
-    if not threads.isnumeric():
-        print(colorama.Fore.RED + "無効な参加数です" + colorama.Fore.RESET)
-        return
-    elif not interval.isnumeric():
-        print(colorama.Fore.RED + "無効なインターバルです" + colorama.Fore.RESET)
-        return
+    print(interval)
     thread_list = []
     for i in range(int(threads)):
         thread = threading.Thread(target=run, args=(gartic_phone_code,))
