@@ -17,7 +17,7 @@ from tkinter import messagebox
 
 class GarticPhoneClient:
     def __init__(self):
-        self.ws = ""
+        self.ws = None
         self.client = httpx.Client()
 
         self.headers = {
@@ -30,16 +30,16 @@ class GarticPhoneClient:
         self.id = ""
 
     def send_requests(self, room_id):
-        randomize_icon = str(random.randint(1, 37))
+        randomize_icon = str(random.randint(1, 47))
 
         self.endpoint = self.client.get(
             f"https://garticphone.com/api/server?code={room_id}",
-            headers = self.headers
+            headers=self.headers
         ).text
 
         response = self.client.get(
             self.endpoint + f"/socket.io/?EIO=3&transport=polling&t={self.generate_random_key()}",
-            headers = self.headers
+            headers=self.headers
         )
         self.sid = re.findall(r"sid\":\"(.*?)\"", response.text)[0]
 
@@ -47,13 +47,13 @@ class GarticPhoneClient:
         user_data = f"{str(len(user_data))}:{user_data}"
         self.client.post(
             self.endpoint + f"/socket.io/?EIO=3&transport=polling&sid={self.sid}&t={self.generate_random_key()}",
-            headers = self.headers,
-            data = user_data
+            headers=self.headers,
+            data=user_data
         )
 
         response = self.client.get(
             self.endpoint + f"/socket.io/?EIO=3&transport=polling&sid={self.sid}&t={self.generate_random_key()}",
-            headers = self.headers
+            headers=self.headers
         )
         if response.text[5:] == "[1,{\"error\":4}]":
             return False
@@ -69,8 +69,8 @@ class GarticPhoneClient:
             time.sleep(10)
             self.send_string("2")
     
-    def send_string(self, string):
-        self.ws.send(string)
+    def send_string(self, send_string):
+        self.ws.send(send_string)
     
     def get_string(self):
         response = self.ws.recv()
@@ -90,26 +90,29 @@ class GarticPhoneClient:
         threading.Thread(target=self.ping_loop).start()
 
         while True:
-            response = self.get_string()
-            if response.startswith("42"):
-                parsed_response = json.loads(response[2:])
-                packet_id = str(parsed_response[1])
-                if len(parsed_response) > 2:
-                    data = parsed_response[2]
-                else:
-                    data = None
-
-                if packet_id == "11":
-                    if data["turnNum"] % 2 == 0:
-                        self.send_string("42[2,6,{\"t\":%turn-count%,\"v\":\"%word%\"}]".replace("%turn-count%", str(data["turnNum"])).replace("%word%", random.choice(words)))
-                        self.send_string("42[2,15,true]")
+            try:
+                response = self.get_string()
+                if response.startswith("42"):
+                    parsed_response = json.loads(response[2:])
+                    packet_id = str(parsed_response[1])
+                    if len(parsed_response) > 2:
+                        data = parsed_response[2]
                     else:
-                        self.send_string("42[2,7,{\"t\":%turn-count%,\"d\":1,\"v\":[1,1,[\"#000000\",6,1],[369,196]]}]".replace("%turn-count%", str(data["turnNum"])))
-                        self.send_string("42[2,7,{\"t\":%turn-count%,\"d\":3,\"v\":[1,1,[\"#000000\",6,1],[369,196]]}]".replace("%turn-count%", str(data["turnNum"])))
-                        self.send_string("42[2,15,true]")
-                elif packet_id == "14":
-                    if str(data) == self.id:
-                        return "Kick"
+                        data = None
+
+                    if packet_id == "11":
+                        if data["turnNum"] % 2 == 0:
+                            self.send_string("42[2,6,{\"t\":%turn-count%,\"v\":\"%word%\"}]".replace("%turn-count%", str(data["turnNum"])).replace("%word%", random.choice(words)))
+                            self.send_string("42[2,15,true]")
+                        else:
+                            self.send_string("42[2,7,{\"t\":%turn-count%,\"d\":1,\"v\":[1,1,[\"#000000\",6,1],[369,196]]}]".replace("%turn-count%", str(data["turnNum"])))
+                            self.send_string("42[2,7,{\"t\":%turn-count%,\"d\":3,\"v\":[1,1,[\"#000000\",6,1],[369,196]]}]".replace("%turn-count%", str(data["turnNum"])))
+                            self.send_string("42[2,15,true]")
+                    elif packet_id == "14":
+                        if str(data) == self.id:
+                            return "Kick"
+            except:
+                return "Error"
 
 words = []
 names = []
@@ -121,6 +124,10 @@ def run(room_id):
         reason = client.main(room_id)
         if reason == "Max":
             return
+        elif reason == "Error":
+            result = messagebox.askquestion("エラーによる切断", "エラーによって切断されました。再接続しますか?")
+            if not result:
+                return
 
 def start(invite_code, join_count, interval):
     global process
@@ -180,7 +187,7 @@ def main():
 
     window.geometry("500x484")
     window.configure(bg = "#505050")
-    window.title("GarticPhone AFK")
+    window.title("GarticPhoneSpammer")
 
     # Canvas
     canvas = tkinter.Canvas(
